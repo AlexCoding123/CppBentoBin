@@ -1,7 +1,18 @@
 #include <cstdint>
 #include <iostream>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdexcept>
 #include <string>
-#include <fstream>
+#include <cstring>
+#include <cerrno>
+
+inline void handle_error(const std::string& msg){
+    throw std::runtime_error(msg + ": " + std::strerror(errno));
+}
 
 struct OhlcvBar {
     uint64_t ts_event;      // Inclusive start time of the bar (ns since UNIX epoch)
@@ -19,19 +30,22 @@ struct OhlcvBar {
 
 
 int main(int argc, char* argv[]){
-    std::fstream fout;
-    //std::string filename = argv[1];
+    try{
+        if( argc != 3){
+            std::cout << "Usage : mmap_create <file-name> <Message>" << std::endl;
+        }
 
-    //unsigned short x = 8675;
+        size_t fsize;
 
-    fout.open("bento-data.bin", std::ios::out | std::ios::binary);
+        int fd = open(argv[1],  O_RDONLY);
+        if(fd == -1){handle_error("open error");}
 
-    if(fout){
-        fout.write(reinterpret_cast<char*>(&x), sizeof(unsigned short));
-        fout.close();
-    }else{
-        std::cout << "error opening the file";
     }
+    catch(const std::exception& e){
+        std::cerr << "Fatal error" << e.what() << std::endl;
+        return 1;
+    }
+
 
     return 0;
 }
