@@ -31,8 +31,9 @@ struct OhlcvBar {
 
 int main(int argc, char* argv[]){
     try{
-        if( argc < 3){
-            std::cout << "Usage : mmap_create <file-name> <Message>" << std::endl;
+        if(argc < 3 || argc > 4){
+            std::cerr << "Usage: " << argv[0] << " <file-name> <start-bar-index (1-based)> [num-bars]" << std::endl;
+            return 1;
         }
 
         int          fd;
