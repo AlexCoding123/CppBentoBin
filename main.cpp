@@ -49,19 +49,49 @@ int main(int argc, char* argv[]){
         //fill sd with file stats
         if(fstat(fd, &sb) == -1){handle_error("fstat");}
 
-        off_t barIndex = std::stoll(argv[2]);
-        offset = barIndex * sizeof(OhlcvBar);
-        pa_offset = offset & ~(sysconf(_SC_PAGE_SIZE) - 1);
-        /* offset for mmap() must be page aligned */
+        off_t barIndex = std::stoll(argv[2]) - 1; //One based indexing
+        if(barIndex < 0) handle_error("Bar index must be bigger than 1");
 
+        offset = barIndex * sizeof(OhlcvBar);
         if (offset >= sb.st_size) {
             handle_error("offset");
         }
 
-        length = sb.st_size - offset;
+        size_t numBars;
+        if(argc == 4){
+            numBars = std::stoull(argv[3]);
+        }else{
+            numBars = (sb.st_size - offset) / sizeof(OhlcvBar);
+        }
 
-        addr = mmap(nullptr, length + offset - pa_offset, PROT_READ, MAP_PRIVATE, fd, pa_offset);
+        if(numBars == 0) handle_error("no bars to read");
 
+        pa_offset = offset & ~(sysconf(_SC_PAGE_SIZE) - 1);
+        /* offset for mmap() must be page aligned */
+
+
+        length = numBars * sizeof(OhlcvBar);
+
+        addr = static_cast<char*>(mmap(nullptr, length + offset - pa_offset, PROT_READ, MAP_PRIVATE, fd, pa_offset));
+
+        if(addr == MAP_FAILED) handle_error("mmap");
+
+                // Access bars
+        OhlcvBar* bars = reinterpret_cast<OhlcvBar*>(addr + (offset - pa_offset));
+        for(size_t i = 0; i < numBars; ++i){
+            std::cout << "Bar " << (barIndex + 1 + i)
+                      << " ts: " << bars[i].ts_event
+                      << ", open: " << bars[i].open
+                      << ", high: " << bars[i].high
+                      << ", low: " << bars[i].low
+                      << ", close: " << bars[i].close
+                      << ", volume: " << bars[i].volume
+                      << std::endl;
+        }
+
+        // Cleanup
+        munmap(addr, length + offset - pa_offset);
+        close(fd);
     }
     catch(const std::exception& e){
         std::cerr << "Fatal error" << e.what() << std::endl;
