@@ -31,14 +31,36 @@ struct OhlcvBar {
 
 int main(int argc, char* argv[]){
     try{
-        if( argc != 3){
+        if( argc < 3){
             std::cout << "Usage : mmap_create <file-name> <Message>" << std::endl;
         }
 
-        size_t fsize;
+        int          fd;
+        char         *addr;
+        off_t        offset, pa_offset;
+        size_t       length;
+        ssize_t      s;
+        struct stat  sb;
 
-        int fd = open(argv[1],  O_RDONLY);
-        if(fd == -1){handle_error("open error");}
+        //Get the file descriptor from CL Argument
+        fd = open(argv[1],  O_RDONLY);
+        if(fd == -1){handle_error("open");}
+
+        //fill sd with file stats
+        if(fstat(fd, &sb) == -1){handle_error("fstat");}
+
+        off_t barIndex = std::stoll(argv[2]);
+        offset = barIndex * sizeof(OhlcvBar);
+        pa_offset = offset & ~(sysconf(_SC_PAGE_SIZE) - 1);
+        /* offset for mmap() must be page aligned */
+
+        if (offset >= sb.st_size) {
+            handle_error("offset");
+        }
+
+        length = sb.st_size - offset;
+
+        addr = mmap(nullptr, length + offset - pa_offset, PROT_READ, MAP_PRIVATE, fd, pa_offset);
 
     }
     catch(const std::exception& e){
