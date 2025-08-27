@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-struct OhlcvBar {
+struct ohlcv_bar{
     uint64_t ts_event;      // ns timestamp
     int64_t open;           // 1e-9 price precision
     int64_t high;

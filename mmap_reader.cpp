@@ -1,4 +1,4 @@
-#include <cstdint>
+#include "ohlcv_1m.h"
 #include <iostream>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -13,21 +13,6 @@
 inline void handle_error(const std::string& msg){
     throw std::runtime_error(msg + ": " + std::strerror(errno));
 }
-
-struct OhlcvBar {
-    uint64_t ts_event;      // Inclusive start time of the bar (ns since UNIX epoch)
-    uint8_t  rtype;         // Record type: 32=OHLCV-1s, 33=OHLCV-1m, 34=OHLCV-1h, 35=OHLCV-1d
-    uint16_t publisher_id;  // Publisher ID (dataset + venue)
-    uint32_t instrument_id; // Instrument identifier
-
-    int64_t open;           // Open price (1 unit = 1e-9)
-    int64_t high;           // High price (1 unit = 1e-9)
-    int64_t low;            // Low price  (1 unit = 1e-9)
-    int64_t close;          // Close price (1 unit = 1e-9)
-
-    uint64_t volume;        // Total traded volume during the bar
-};
-
 
 int main(int argc, char* argv[]){
     try{
@@ -50,10 +35,15 @@ int main(int argc, char* argv[]){
         //fill sd with file stats
         if(fstat(fd, &sb) == -1){handle_error("fstat");}
 
+        // Check that file size is divisible by sizeof(OhlcvBar)
+        if (sb.st_size % sizeof(ohlcv_bar) != 0) {
+            handle_error("file size is not a multiple of OhlcvBar; file may be corrupted or layout mismatched");
+        }
+
         off_t barIndex = std::stoll(argv[2]) - 1; //One based indexing
         if(barIndex < 0) handle_error("Bar index must be bigger than 1");
 
-        offset = barIndex * sizeof(OhlcvBar);
+        offset = barIndex * sizeof(ohlcv_bar);
         if (offset >= sb.st_size) {
             handle_error("offset");
         }
@@ -62,7 +52,7 @@ int main(int argc, char* argv[]){
         if(argc == 4){
             numBars = std::stoull(argv[3]);
         }else{
-            numBars = (sb.st_size - offset) / sizeof(OhlcvBar);
+            numBars = (sb.st_size - offset) / sizeof(ohlcv_bar);
         }
 
         if(numBars == 0) handle_error("no bars to read");
@@ -71,14 +61,14 @@ int main(int argc, char* argv[]){
         /* offset for mmap() must be page aligned */
 
 
-        length = numBars * sizeof(OhlcvBar);
+        length = numBars * sizeof(ohlcv_bar);
 
         addr = static_cast<char*>(mmap(nullptr, length + offset - pa_offset, PROT_READ, MAP_PRIVATE, fd, pa_offset));
 
         if(addr == MAP_FAILED) handle_error("mmap");
 
                 // Access bars
-        OhlcvBar* bars = reinterpret_cast<OhlcvBar*>(addr + (offset - pa_offset));
+        ohlcv_bar* bars = reinterpret_cast<ohlcv_bar*>(addr + (offset - pa_offset));
         for(size_t i = 0; i < numBars; ++i){
             std::cout << "Bar " << (barIndex + 1 + i)
                       << " ts: " << bars[i].ts_event
